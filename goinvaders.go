@@ -19,15 +19,16 @@ func disableRawMode() {
 	if err != nil {
 		die("Could not restore terminal state: " + err.Error())
 	}
+	fmt.Print("\033[2J\033[H")
 }
 
 func enableRawMode() {
-	fmt.Print("\033[2J\033H")
 	var err error
 	state, err = term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		die("Error enabling raw mode: " + err.Error())
 	}
+	fmt.Print("\033[2J\033[H")
 }
 
 func main() {
