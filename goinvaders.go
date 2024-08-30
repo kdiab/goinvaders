@@ -27,7 +27,7 @@ func disableRawMode() {
 	if err != nil {
 		die("Could not restore terminal state: " + err.Error())
 	}
-	fmt.Print("\x1b[2J\x1b[H")
+	fmt.Print("\x1b[2J\x1b[H\x1b[?25h")
 }
 
 func enableRawMode() {
@@ -36,7 +36,7 @@ func enableRawMode() {
 	if err != nil {
 		die("Error enabling raw mode: " + err.Error())
 	}
-	fmt.Print("\x1b[2J\x1b[H\x1b[?25l")
+	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
 }
 
 func drawShape(s *entity) {
@@ -50,28 +50,31 @@ func drawShape(s *entity) {
 	}
 
 	for i, w := range shape {
-		fmt.Printf("\x1b[%d;%dH", s.line+i, s.column)
-		fmt.Printf("%s", w)
+		fmt.Printf("\x1b[%d;%dH%s", s.line+i, s.column, w)
 	}
 }
 
-func drawShapes(s *entity, amount int) {
-	var shape []string
-	position := s.column / amount
-
-	for _, line := range s.shape {
-		binaryString := fmt.Sprintf("%0*b", s.width, line)
-		lineStr := strings.ReplaceAll(binaryString, "1", "█")
-		lineStr = strings.ReplaceAll(lineStr, "0", " ")
-		shape = append(shape, lineStr)
+func generateEntities(s entity, e1 int) []entity {
+	var entities []entity
+	gap := s.column / e1
+	for i := 0; i < e1; i++ {
+		s.column = gap + s.width*i*2
+		entities = append(entities, s)
 	}
 
-	for i := range amount {
-		for j, w := range shape {
-			fmt.Printf("\x1b[%d;%dH", s.line+j, position*i+amount)
-			fmt.Printf("%s", w)
-		}
+	return entities
+}
+
+func drawEntities(entities []entity) {
+	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
+	for _, e := range entities {
+		drawShape(&e)
 	}
+}
+
+func Move(s *entity, x int, y int) {
+	s.column += x
+	s.line += y
 }
 
 func main() {
@@ -83,21 +86,13 @@ func main() {
 		die("Could not get terminal size: " + err.Error())
 	}
 
-	spaceship := entity{
-		shape: []int{
-			0b000010000,
-			0b010111010,
-			0b011111110,
-		},
-		width:  9,
-		column: column / 2,
-		line:   line - 3,
-	}
+	var entities []entity
+
 	ufo := entity{
 		shape: []int{
-			0b0001000, // Row 1
-			0b0111110, // Row 2
-			0b1010101, // Row 3
+			0b0001000,
+			0b0111110,
+			0b1010101,
 		},
 		width:  7,
 		column: column,
@@ -118,18 +113,36 @@ func main() {
 		column: column / 2,
 		line:   line / 2,
 	}
+	spaceship := entity{
+		shape: []int{
+			0b000010000,
+			0b010111010,
+			0b111101111,
+		},
+		width:  9,
+		column: column / 2,
+		line:   line - 3,
+	}
 
-	drawShape(&spaceship)
-	drawShape(&octopus)
-	drawShapes(&ufo, 8)
+	entities = append(entities, spaceship)
+	entities = append(entities, generateEntities(ufo, 14)...)
+	entities = append(entities, generateEntities(octopus, 1)...)
 
+	drawEntities(entities)
 	for {
 		var b [3]byte
 		if _, err := os.Stdin.Read(b[:]); err != nil {
 			break
 		}
+		if b[0] == 'a' {
+			Move(&entities[0], -1, 0)
+		}
+		if b[0] == 'd' {
+			Move(&entities[0], 1, 0)
+		}
 		if b[0] == 'q' {
 			break
 		}
+		drawEntities(entities)
 	}
 }
