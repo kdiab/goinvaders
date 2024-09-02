@@ -9,10 +9,11 @@ import (
 )
 
 type entity struct {
-	width  int
-	line   int // y position in terminal
-	column int // x position in terminal
-	shape  []int
+	width int
+	y     int // line position in terminal
+	x     int // column position in terminal
+	shape []int
+	move  func(e *entity, dx int, dy int)
 }
 
 var state *term.State
@@ -50,15 +51,15 @@ func drawShape(s *entity) {
 	}
 
 	for i, w := range shape {
-		fmt.Printf("\x1b[%d;%dH%s", s.line+i, s.column, w)
+		fmt.Printf("\x1b[%d;%dH%s", s.y+i, s.x, w)
 	}
 }
 
 func generateEntities(s entity, e1 int) []entity {
 	var entities []entity
-	gap := s.column / e1
+	gap := s.x / e1
 	for i := 0; i < e1; i++ {
-		s.column = gap + s.width*i*2
+		s.x = gap + s.width*i*2
 		entities = append(entities, s)
 	}
 
@@ -70,11 +71,6 @@ func drawEntities(entities []entity) {
 	for _, e := range entities {
 		drawShape(&e)
 	}
-}
-
-func Move(s *entity, x int, y int) {
-	s.column += x
-	s.line += y
 }
 
 func main() {
@@ -94,9 +90,9 @@ func main() {
 			0b0111110,
 			0b1010101,
 		},
-		width:  7,
-		column: column,
-		line:   1,
+		width: 7,
+		x:     column,
+		y:     1,
 	}
 	octopus := entity{
 		shape: []int{
@@ -109,9 +105,9 @@ func main() {
 			0b0110011010,
 			0b1100000011,
 		},
-		width:  10,
-		column: column / 2,
-		line:   line / 2,
+		width: 10,
+		x:     column / 2,
+		y:     line / 2,
 	}
 	spaceship := entity{
 		shape: []int{
@@ -119,9 +115,13 @@ func main() {
 			0b010111010,
 			0b111101111,
 		},
-		width:  9,
-		column: column / 2,
-		line:   line - 3,
+		width: 9,
+		x:     column / 2,
+		y:     line - 3,
+		move: func(e *entity, dx int, dy int) {
+			e.x += dx
+			e.y += dy
+		},
 	}
 
 	entities = append(entities, spaceship)
@@ -135,10 +135,10 @@ func main() {
 			break
 		}
 		if b[0] == 'a' {
-			Move(&entities[0], -1, 0)
+			entities[0].move(&entities[0], -1, 0)
 		}
 		if b[0] == 'd' {
-			Move(&entities[0], 1, 0)
+			entities[0].move(&entities[0], 1, 0)
 		}
 		if b[0] == 'q' {
 			break
