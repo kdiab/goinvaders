@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -88,7 +90,7 @@ func readInput(userInput chan byte) {
 	}
 }
 
-func processInput(userInput chan byte, e []entity) {
+func processInput(userInput chan byte, e []entity, exitChan chan bool) {
 	select {
 	case b, ok := <-userInput:
 		if !ok {
@@ -100,13 +102,30 @@ func processInput(userInput chan byte, e []entity) {
 		if b == 'd' {
 			e[0].move(&e[0], 1, 0)
 		}
-		if b == 'q' {
-			fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
-			fmt.Println("Thank you for playing!")
-			os.Exit(0)
+		if b == 'q' || b == 3 {
+			exitChan <- true
 		}
 	default:
 	}
+}
+
+func exitGame(exitChan chan bool) {
+	select {
+	case <-exitChan:
+		disableRawMode()
+		fmt.Println("Thank you for playing!")
+		os.Exit(0)
+	case <-signalChan():
+		disableRawMode()
+		fmt.Println("Thank you for playing!")
+		os.Exit(0)
+	}
+}
+
+func signalChan() chan os.Signal {
+	sigTerm := make(chan os.Signal, 1)
+	signal.Notify(sigTerm, syscall.SIGINT, syscall.SIGTERM)
+	return sigTerm
 }
 
 func main() {
@@ -163,12 +182,15 @@ func main() {
 	entities = append(entities, spaceship)
 	entities = append(entities, generateEntities(ufo, 14)...)
 	entities = append(entities, generateEntities(octopus, 1)...)
+
+	exitChan := make(chan bool)
 	userInput := make(chan byte)
 
+	go exitGame(exitChan)
 	go readInput(userInput)
 
 	for {
-		processInput(userInput, entities)
+		processInput(userInput, entities, exitChan)
 		drawEntities(entities)
 		time.Sleep(33 * time.Millisecond)
 	}
