@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -73,6 +74,41 @@ func drawEntities(entities []entity) {
 	}
 }
 
+func readInput(userInput chan byte) {
+	var b [1]byte
+	for {
+		n, err := os.Stdin.Read(b[:])
+		if err != nil {
+			close(userInput)
+			return
+		}
+		if n > 0 {
+			userInput <- b[0]
+		}
+	}
+}
+
+func processInput(userInput chan byte, e []entity) {
+	select {
+	case b, ok := <-userInput:
+		if !ok {
+			return
+		}
+		if b == 'a' {
+			e[0].move(&e[0], -1, 0)
+		}
+		if b == 'd' {
+			e[0].move(&e[0], 1, 0)
+		}
+		if b == 'q' {
+			fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
+			fmt.Println("Thank you for playing!")
+			os.Exit(0)
+		}
+	default:
+	}
+}
+
 func main() {
 	enableRawMode()
 	defer disableRawMode()
@@ -127,22 +163,13 @@ func main() {
 	entities = append(entities, spaceship)
 	entities = append(entities, generateEntities(ufo, 14)...)
 	entities = append(entities, generateEntities(octopus, 1)...)
+	userInput := make(chan byte)
 
-	drawEntities(entities)
+	go readInput(userInput)
+
 	for {
-		var b [3]byte
-		if _, err := os.Stdin.Read(b[:]); err != nil {
-			break
-		}
-		if b[0] == 'a' {
-			entities[0].move(&entities[0], -1, 0)
-		}
-		if b[0] == 'd' {
-			entities[0].move(&entities[0], 1, 0)
-		}
-		if b[0] == 'q' {
-			break
-		}
+		processInput(userInput, entities)
 		drawEntities(entities)
+		time.Sleep(33 * time.Millisecond)
 	}
 }
