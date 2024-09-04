@@ -8,8 +8,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kdiab/base3"
 	"golang.org/x/term"
 )
+
+type GameState struct {
+	entities     []entity
+	wave         int
+	termX        int
+	termY        int
+	waveComplete bool
+}
 
 type entity struct {
 	width int
@@ -60,6 +69,9 @@ func drawShape(s *entity) {
 
 func generateEntities(s entity, e1 int) []entity {
 	var entities []entity
+	if e1 <= 0 {
+		return entities
+	}
 	gap := s.x / e1
 	for i := 0; i < e1; i++ {
 		s.x = gap + s.width*i*2
@@ -69,11 +81,16 @@ func generateEntities(s entity, e1 int) []entity {
 	return entities
 }
 
-func drawEntities(entities []entity) {
+func drawEntities(state *GameState, player *entity) {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
-	for _, e := range entities {
+	fmt.Print(state.wave)
+	if state.waveComplete == false {
+		newWave(state)
+	}
+	for _, e := range state.entities {
 		drawShape(&e)
 	}
+	drawShape(player)
 }
 
 func readInput(userInput chan byte) {
@@ -90,17 +107,20 @@ func readInput(userInput chan byte) {
 	}
 }
 
-func processInput(userInput chan byte, e []entity, exitChan chan bool) {
+func processInput(userInput chan byte, exitChan chan bool, state *GameState, player *entity) {
 	select {
 	case b, ok := <-userInput:
 		if !ok {
 			return
 		}
 		if b == 'a' {
-			e[0].move(&e[0], -1, 0)
+			player.move(player, -1, 0)
 		}
 		if b == 'd' {
-			e[0].move(&e[0], 1, 0)
+			player.move(player, 1, 0)
+		}
+		if b == 'n' {
+			updateGame(state)
 		}
 		if b == 'q' || b == 3 {
 			exitChan <- true
@@ -122,22 +142,23 @@ func exitGame(exitChan chan bool) {
 	}
 }
 
-func signalChan() chan os.Signal {
-	sigTerm := make(chan os.Signal, 1)
-	signal.Notify(sigTerm, syscall.SIGINT, syscall.SIGTERM)
-	return sigTerm
+func MakeEnemies(state *GameState) (enemies []int) {
+	var out []int
+	base3String := base3.IntToBase3(state.wave, 4)
+	for _, e := range base3String {
+		out = append(out, int(e)-48)
+	}
+	return out
 }
 
-func main() {
-	enableRawMode()
-	defer disableRawMode()
+func newWave(state *GameState) {
 
-	column, line, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
-		die("Could not get terminal size: " + err.Error())
-	}
+	var empty []entity
+	state.entities = empty
+	x := state.termX
+	y := state.termY
 
-	var entities []entity
+	enemies := MakeEnemies(state)
 
 	ufo := entity{
 		shape: []int{
@@ -146,8 +167,8 @@ func main() {
 			0b1010101,
 		},
 		width: 7,
-		x:     column,
-		y:     1,
+		x:     x / 2,
+		y:     4,
 	}
 	octopus := entity{
 		shape: []int{
@@ -161,27 +182,55 @@ func main() {
 			0b1100000011,
 		},
 		width: 10,
-		x:     column / 2,
-		y:     line / 2,
+		x:     x / 2,
+		y:     y / 2,
 	}
-	spaceship := entity{
+
+	state.entities = append(state.entities, generateEntities(ufo, enemies[3])...)
+	state.entities = append(state.entities, generateEntities(octopus, enemies[2])...)
+}
+
+func signalChan() chan os.Signal {
+	sigTerm := make(chan os.Signal, 1)
+	signal.Notify(sigTerm, syscall.SIGINT, syscall.SIGTERM)
+	return sigTerm
+}
+
+func updateGame(state *GameState) {
+	state.wave += 1
+	state.waveComplete = false
+}
+
+func main() {
+	enableRawMode()
+	defer disableRawMode()
+
+	x, y, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		die("Could not get terminal size: " + err.Error())
+	}
+
+	player := entity{
 		shape: []int{
 			0b000010000,
 			0b010111010,
 			0b111101111,
 		},
 		width: 9,
-		x:     column / 2,
-		y:     line - 3,
+		x:     x / 2,
+		y:     y - 3,
 		move: func(e *entity, dx int, dy int) {
 			e.x += dx
 			e.y += dy
 		},
 	}
 
-	entities = append(entities, spaceship)
-	entities = append(entities, generateEntities(ufo, 14)...)
-	entities = append(entities, generateEntities(octopus, 1)...)
+	state := GameState{
+		wave:         1,
+		termX:        x,
+		termY:        y,
+		waveComplete: false,
+	}
 
 	exitChan := make(chan bool)
 	userInput := make(chan byte)
@@ -190,8 +239,8 @@ func main() {
 	go readInput(userInput)
 
 	for {
-		processInput(userInput, entities, exitChan)
-		drawEntities(entities)
+		processInput(userInput, exitChan, &state, &player)
+		drawEntities(&state, &player)
 		time.Sleep(33 * time.Millisecond)
 	}
 }
