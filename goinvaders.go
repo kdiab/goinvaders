@@ -83,7 +83,7 @@ func generateEntities(s entity, e1 int) []entity {
 
 func drawEntities(state *GameState, player *entity) {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
-	fmt.Print(state.wave)
+	fmt.Print(state.wave, state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
 	if state.waveComplete == false {
 		newWave(state)
 	}
@@ -114,10 +114,14 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			return
 		}
 		if b == 'a' {
-			player.move(player, -1, 0)
+			if !detectBoundaryCollision('l', state.termX-player.width, player.x) {
+				player.move(player, -2, 0)
+			}
 		}
 		if b == 'd' {
-			player.move(player, 1, 0)
+			if !detectBoundaryCollision('r', state.termX-player.width, player.x) {
+				player.move(player, 2, 0)
+			}
 		}
 		if b == 'n' {
 			updateGame(state)
@@ -199,6 +203,17 @@ func signalChan() chan os.Signal {
 func updateGame(state *GameState) {
 	state.wave += 1
 	state.waveComplete = false
+}
+
+func detectBoundaryCollision(direction rune, boundary int, pos int) bool {
+	switch direction {
+	case 'l':
+		return pos < 2
+	case 'r':
+		return pos > boundary
+	default:
+		return false
+	}
 }
 
 func main() {
