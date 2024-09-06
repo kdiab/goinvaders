@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
@@ -67,24 +68,32 @@ func drawShape(s *entity) {
 	}
 }
 
-func generateEntities(s entity, e1 int) []entity {
+func generateEntities(s entity, e1 int, termX int) []entity {
 	var entities []entity
 	if e1 <= 0 {
 		return entities
 	}
-	gap := s.x / e1
 	for i := 0; i < e1; i++ {
-		s.x = gap + s.width*i*2
+		r := rand.Intn(termX)
+		if r < s.width {
+			r += s.width
+		}
+		if r > termX-s.width {
+			r -= s.width
+		}
+		s.x = r
 		entities = append(entities, s)
 	}
-
 	return entities
 }
 
 func drawEntities(state *GameState, player *entity) {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
-	fmt.Print(state.wave, state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
-	if state.waveComplete == false {
+	fmt.Printf("DEBUG INFO\r\nWave: %d\r\nWave in Base3: %s\r\nTerminal Width: %d\r\nPlayer Position: %d\r\nLeft Wall Collision: %t\r\nRight Wall Collision: %t\r\n", state.wave, base3.IntToBase3(state.wave, 5), state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
+	for _, e := range state.entities {
+		fmt.Printf("Entity X: %d\r\nEntity Y: %d\r\n", e.x, e.y)
+	}
+	if state.waveComplete == true {
 		newWave(state)
 	}
 	for _, e := range state.entities {
@@ -124,6 +133,7 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			}
 		}
 		if b == 'n' {
+			state.waveComplete = true
 			updateGame(state)
 		}
 		if b == 'q' || b == 3 {
@@ -171,7 +181,7 @@ func newWave(state *GameState) {
 			0b1010101,
 		},
 		width: 7,
-		x:     x / 2,
+		x:     x - 7,
 		y:     4,
 	}
 	octopus := entity{
@@ -186,12 +196,14 @@ func newWave(state *GameState) {
 			0b1100000011,
 		},
 		width: 10,
-		x:     x / 2,
+		x:     x - 10,
 		y:     y / 2,
 	}
 
-	state.entities = append(state.entities, generateEntities(ufo, enemies[3])...)
-	state.entities = append(state.entities, generateEntities(octopus, enemies[2])...)
+	state.entities = append(state.entities, generateEntities(ufo, enemies[3], state.termX)...)
+	state.entities = append(state.entities, generateEntities(ufo, enemies[2], state.termX)...)
+	state.entities = append(state.entities, generateEntities(octopus, enemies[1], state.termX)...)
+	state.waveComplete = false
 }
 
 func signalChan() chan os.Signal {
@@ -202,7 +214,6 @@ func signalChan() chan os.Signal {
 
 func updateGame(state *GameState) {
 	state.wave += 1
-	state.waveComplete = false
 }
 
 func detectBoundaryCollision(direction rune, boundary int, pos int) bool {
@@ -246,6 +257,7 @@ func main() {
 		termY:        y,
 		waveComplete: false,
 	}
+	newWave(&state)
 
 	exitChan := make(chan bool)
 	userInput := make(chan byte)
