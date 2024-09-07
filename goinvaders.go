@@ -21,12 +21,20 @@ type GameState struct {
 	waveComplete bool
 }
 
+type Bullet struct {
+	shape    []int
+	x        int
+	y        int
+	velocity int
+}
+
 type entity struct {
 	width int
 	y     int // line position in terminal
 	x     int // column position in terminal
 	shape []int
 	move  func(e *entity, dx int, dy int)
+	shoot func(b *Bullet)
 }
 
 var state *term.State
@@ -225,6 +233,10 @@ func detectBoundaryCollision(direction rune, boundary int, pos int) bool {
 	default:
 		return false
 	}
+}
+
+func moveBullet(b *Bullet) {
+	b.y += b.velocity
 }
 
 func main() {
