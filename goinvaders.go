@@ -15,14 +15,17 @@ import (
 
 type GameState struct {
 	entities     []entity
+	bullets      []*bullet
 	wave         int
 	termX        int
 	termY        int
 	waveComplete bool
 }
 
-type Bullet struct {
+type bullet struct {
 	shape    []int
+	width    int
+	height   int
 	x        int
 	y        int
 	velocity int
@@ -34,7 +37,7 @@ type entity struct {
 	x     int // column position in terminal
 	shape []int
 	move  func(e *entity, dx int, dy int)
-	shoot func(b *Bullet)
+	shoot func(e *entity) *bullet
 }
 
 var state *term.State
@@ -108,6 +111,13 @@ func drawEntities(state *GameState, player *entity) {
 		drawShape(&e)
 	}
 	drawShape(player)
+	for _, b := range state.bullets {
+		if b.y <= b.height {
+			new_bullets := removeBullet(state.bullets, b)
+			state.bullets = new_bullets
+		}
+		drawBullet(b)
+	}
 }
 
 func readInput(userInput chan byte) {
@@ -139,6 +149,10 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			if !detectBoundaryCollision('r', state.termX-player.width, player.x) {
 				player.move(player, 2, 0)
 			}
+		}
+		if b == 'w' {
+			bullet := player.shoot(player)
+			spawnBullet(bullet, state)
 		}
 		if b == 'n' {
 			state.waveComplete = true
@@ -235,8 +249,34 @@ func detectBoundaryCollision(direction rune, boundary int, pos int) bool {
 	}
 }
 
-func moveBullet(b *Bullet) {
-	b.y += b.velocity
+func drawBullet(b *bullet) {
+	var shape []string
+
+	for _, line := range b.shape {
+		binaryString := fmt.Sprintf("%0*b", b.width, line)
+		lineStr := strings.ReplaceAll(binaryString, "1", "█")
+		lineStr = strings.ReplaceAll(lineStr, "0", " ")
+		shape = append(shape, lineStr)
+	}
+
+	for i, w := range shape {
+		fmt.Printf("\x1b[%d;%dH%s", b.y+i, b.x, w)
+	}
+	b.y -= b.velocity
+}
+
+func spawnBullet(b *bullet, state *GameState) {
+	state.bullets = append(state.bullets, b)
+}
+
+func removeBullet(bullets []*bullet, bulletToRemove *bullet) []*bullet {
+	newBullets := []*bullet{}
+	for _, bullet := range bullets {
+		if bullet != bulletToRemove {
+			newBullets = append(newBullets, bullet)
+		}
+	}
+	return newBullets
 }
 
 func main() {
@@ -260,6 +300,19 @@ func main() {
 		move: func(e *entity, dx int, dy int) {
 			e.x += dx
 			e.y += dy
+		},
+		shoot: func(e *entity) *bullet {
+			return &bullet{
+				shape: []int{
+					0b000010000,
+					0b010010010,
+				},
+				x:        e.x,
+				y:        e.y,
+				width:    9,
+				height:   3,
+				velocity: 3,
+			}
 		},
 	}
 
