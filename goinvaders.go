@@ -104,6 +104,9 @@ func drawEntities(state *GameState, player *entity) {
 	for _, e := range state.entities {
 		fmt.Printf("Entity X: %d\r\nEntity Y: %d\r\n", e.x, e.y)
 	}
+	//	for _, e := range state.bullets {
+	//		fmt.Printf("Bullet X: %d\r\nBullet Y: %d\r\n", e.x, e.y)
+	//	}
 	if state.waveComplete == true {
 		newWave(state)
 	}
@@ -112,7 +115,7 @@ func drawEntities(state *GameState, player *entity) {
 	}
 	drawShape(player)
 	for _, b := range state.bullets {
-		if b.y <= b.height {
+		if b.y < 0+b.velocity {
 			new_bullets := removeBullet(state.bullets, b)
 			state.bullets = new_bullets
 		}
@@ -265,12 +268,24 @@ func drawBullet(b *bullet) {
 	b.y -= b.velocity
 }
 
-func spawnBullet(b *bullet, state *GameState) {
-	// Reshape bullet and append to list
-	// var bullets []*bullet
-	// for _, s := range b.shape {
-	// }
-	state.bullets = append(state.bullets, b)
+func spawnBullet(bullets *bullet, state *GameState) {
+	var ret []*bullet
+	for i, b := range bullets.shape {
+		binaryString := fmt.Sprintf("%0*b", bullets.width, b)
+		for j, s := range binaryString {
+			if s == '1' {
+				singleBullet := bullet{
+					shape:    []int{1},
+					x:        bullets.x + j,
+					y:        bullets.y + i,
+					width:    1,
+					velocity: bullets.velocity,
+				}
+				ret = append(ret, &singleBullet)
+			}
+		}
+	}
+	state.bullets = append(state.bullets, ret...)
 }
 
 func removeBullet(bullets []*bullet, bulletToRemove *bullet) []*bullet {
@@ -286,7 +301,7 @@ func removeBullet(bullets []*bullet, bulletToRemove *bullet) []*bullet {
 func detectCollision(state *GameState) bool {
 	for _, e := range state.entities {
 		for _, b := range state.bullets {
-			if b.x < e.x+b.width && b.x > e.x-b.width && b.y < e.y {
+			if (b.x >= e.x && b.x <= e.x+e.width-1) && b.y == e.y {
 				return true
 			}
 		}
@@ -326,7 +341,7 @@ func main() {
 				y:        e.y,
 				width:    9,
 				height:   2,
-				velocity: 3,
+				velocity: 1,
 			}
 		},
 	}
