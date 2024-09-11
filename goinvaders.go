@@ -100,7 +100,7 @@ func generateEntities(s entity, e1 int, termX int) []entity {
 
 func drawEntities(state *GameState, player *entity) {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
-	fmt.Printf("DEBUG INFO\r\nWave: %d\r\nWave in Base3: %s\r\nTerminal Width: %d\r\nPlayer Position: %d\r\nLeft Wall Collision: %t\r\nRight Wall Collision: %t\r\nEntity Collision: %t\r\n", state.wave, base3.IntToBase3(state.wave, 5), state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x), detectCollision(state))
+	fmt.Printf("DEBUG INFO\r\nWave: %d\r\nWave in Base3: %s\r\nTerminal Width: %d\r\nPlayer Position: %d\r\nLeft Wall Collision: %t\r\nRight Wall Collision: %t\r\n", state.wave, base3.IntToBase3(state.wave, 5), state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
 	for _, e := range state.entities {
 		fmt.Printf("Entity X: %d\r\nEntity Y: %d\r\n", e.x, e.y)
 	}
@@ -115,7 +115,7 @@ func drawEntities(state *GameState, player *entity) {
 	}
 	drawShape(player)
 	for _, b := range state.bullets {
-		if b.y < 0+b.velocity {
+		if b.y < 0+b.velocity || detectCollision(state, b) {
 			new_bullets := removeBullet(state.bullets, b)
 			state.bullets = new_bullets
 		}
@@ -298,12 +298,10 @@ func removeBullet(bullets []*bullet, bulletToRemove *bullet) []*bullet {
 	return newBullets
 }
 
-func detectCollision(state *GameState) bool {
+func detectCollision(state *GameState, b *bullet) bool {
 	for _, e := range state.entities {
-		for _, b := range state.bullets {
-			if (b.x >= e.x && b.x <= e.x+e.width-1) && b.y == e.y {
-				return true
-			}
+		if (b.x >= e.x && b.x <= e.x+e.width-1) && b.y == e.y+len(e.shape) {
+			return true
 		}
 	}
 	return false
