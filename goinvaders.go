@@ -266,6 +266,10 @@ func drawBullet(b *bullet) {
 }
 
 func spawnBullet(b *bullet, state *GameState) {
+	// Reshape bullet and append to list
+	// var bullets []*bullet
+	// for _, s := range b.shape {
+	// }
 	state.bullets = append(state.bullets, b)
 }
 
@@ -282,7 +286,7 @@ func removeBullet(bullets []*bullet, bulletToRemove *bullet) []*bullet {
 func detectCollision(state *GameState) bool {
 	for _, e := range state.entities {
 		for _, b := range state.bullets {
-			if b.x <= e.x && b.x >= e.x {
+			if b.x < e.x+b.width && b.x > e.x-b.width && b.y < e.y {
 				return true
 			}
 		}
@@ -302,7 +306,7 @@ func main() {
 	player := entity{
 		shape: []int{
 			0b000010000,
-			0b010111010,
+			0b100111001,
 			0b111101111,
 		},
 		width: 9,
@@ -316,7 +320,7 @@ func main() {
 			return &bullet{
 				shape: []int{
 					0b000010000,
-					0b010010010,
+					0b100010001,
 				},
 				x:        e.x,
 				y:        e.y,
