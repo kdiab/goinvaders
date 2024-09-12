@@ -14,7 +14,7 @@ import (
 )
 
 type GameState struct {
-	entities     []entity
+	entities     []*entity
 	bullets      []*bullet
 	wave         int
 	termX        int
@@ -29,15 +29,19 @@ type bullet struct {
 	x        int
 	y        int
 	velocity int
+	damage   int
 }
 
 type entity struct {
-	width int
-	y     int // line position in terminal
-	x     int // column position in terminal
-	shape []int
-	move  func(e *entity, dx int, dy int)
-	shoot func(e *entity) *bullet
+	width   int
+	y       int // line position in terminal
+	x       int // column position in terminal
+	shape   []int
+	move    func(e *entity, dx int, dy int)
+	shoot   func(e *entity) *bullet
+	health  int
+	damaged bool
+	alive   bool
 }
 
 var state *term.State
@@ -73,14 +77,19 @@ func drawShape(s *entity) {
 		lineStr = strings.ReplaceAll(lineStr, "0", " ")
 		shape = append(shape, lineStr)
 	}
-
-	for i, w := range shape {
-		fmt.Printf("\x1b[%d;%dH%s", s.y+i, s.x, w)
+	if s.damaged == true {
+		for i, w := range shape {
+			fmt.Printf("\033[38;2;245;0;0m\x1b[%d;%dH%s", s.y+i, s.x, w)
+		}
+	} else {
+		for i, w := range shape {
+			fmt.Printf("\x1b[0m\x1b[%d;%dH%s", s.y+i, s.x, w)
+		}
 	}
 }
 
-func generateEntities(s entity, e1 int, termX int) []entity {
-	var entities []entity
+func generateEntities(s entity, e1 int, termX int) []*entity {
+	var entities []*entity
 	if e1 <= 0 {
 		return entities
 	}
@@ -92,8 +101,9 @@ func generateEntities(s entity, e1 int, termX int) []entity {
 		if r > termX-s.width {
 			r -= s.width
 		}
-		s.x = r
-		entities = append(entities, s)
+		newEntity := s
+		newEntity.x = r
+		entities = append(entities, &newEntity)
 	}
 	return entities
 }
@@ -110,8 +120,14 @@ func drawEntities(state *GameState, player *entity) {
 	if state.waveComplete == true {
 		newWave(state)
 	}
-	for _, e := range state.entities {
-		drawShape(&e)
+	for i, e := range state.entities {
+		if e.health <= 0 {
+			state.entities[i].alive = false
+		}
+		if e.alive {
+			drawShape(e)
+			state.entities[i].damaged = false
+		}
 	}
 	drawShape(player)
 	for _, b := range state.bullets {
@@ -120,6 +136,10 @@ func drawEntities(state *GameState, player *entity) {
 			state.bullets = new_bullets
 		}
 		drawBullet(b)
+	}
+	if allEnemiesKilled(state) {
+		state.waveComplete = true
+		updateGame(state)
 	}
 }
 
@@ -190,9 +210,18 @@ func MakeEnemies(state *GameState) (enemies []int) {
 	return out
 }
 
+func allEnemiesKilled(state *GameState) bool {
+	for _, e := range state.entities {
+		if e.alive {
+			return false
+		}
+	}
+	return true
+}
+
 func newWave(state *GameState) {
 
-	var empty []entity
+	var empty []*entity
 	state.entities = empty
 	x := state.termX
 	y := state.termY
@@ -205,9 +234,11 @@ func newWave(state *GameState) {
 			0b0111110,
 			0b1010101,
 		},
-		width: 7,
-		x:     x - 7,
-		y:     4,
+		width:  7,
+		x:      x - 7,
+		y:      4,
+		health: 5,
+		alive:  true,
 	}
 	octopus := entity{
 		shape: []int{
@@ -220,13 +251,14 @@ func newWave(state *GameState) {
 			0b0110011010,
 			0b1100000011,
 		},
-		width: 10,
-		x:     x - 10,
-		y:     y / 2,
+		width:  10,
+		x:      x - 10,
+		y:      y / 2,
+		health: 15,
+		alive:  true,
 	}
 
-	state.entities = append(state.entities, generateEntities(ufo, enemies[3], state.termX)...)
-	state.entities = append(state.entities, generateEntities(ufo, enemies[2], state.termX)...)
+	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2], state.termX)...)
 	state.entities = append(state.entities, generateEntities(octopus, enemies[1], state.termX)...)
 	state.waveComplete = false
 }
@@ -280,6 +312,7 @@ func spawnBullet(bullets *bullet, state *GameState) {
 					y:        bullets.y + i,
 					width:    1,
 					velocity: bullets.velocity,
+					damage:   bullets.damage,
 				}
 				ret = append(ret, &singleBullet)
 			}
@@ -299,9 +332,13 @@ func removeBullet(bullets []*bullet, bulletToRemove *bullet) []*bullet {
 }
 
 func detectCollision(state *GameState, b *bullet) bool {
-	for _, e := range state.entities {
+	for i, e := range state.entities {
 		if (b.x >= e.x && b.x <= e.x+e.width-1) && b.y == e.y+len(e.shape) {
-			return true
+			state.entities[i].health -= b.damage
+			state.entities[i].damaged = true
+			if state.entities[i].alive {
+				return true
+			}
 		}
 	}
 	return false
@@ -340,8 +377,11 @@ func main() {
 				width:    9,
 				height:   2,
 				velocity: 1,
+				damage:   1,
 			}
 		},
+		health: 100,
+		alive:  true,
 	}
 
 	state := GameState{
