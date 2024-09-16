@@ -33,15 +33,16 @@ type bullet struct {
 }
 
 type entity struct {
-	width   int
-	y       int // line position in terminal
-	x       int // column position in terminal
-	shape   []int
-	move    func(e *entity, dx int, dy int)
-	shoot   func(e *entity) *bullet
-	health  int
-	damaged bool
-	alive   bool
+	width    int
+	y        int // line position in terminal
+	x        int // column position in terminal
+	shape    []int
+	move     func(e *entity, dx int, dy int)
+	shoot    func(e *entity) *bullet
+	health   int
+	damaged  bool
+	alive    bool
+	collided bool
 }
 
 var state *term.State
@@ -124,7 +125,22 @@ func drawEntities(state *GameState, player *entity) {
 		if e.health <= 0 {
 			state.entities[i].alive = false
 		}
+		dy := 0
+		if detectBoundaryCollision('l', state.termX-e.width, e.x) {
+			state.entities[i].collided = true
+			dy = 3
+		} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
+			state.entities[i].collided = false
+			dy = 3
+		}
+		dx := 0
+		if e.collided == true {
+			dx = 1
+		} else {
+			dx = -1
+		}
 		if e.alive {
+			state.entities[i].move(state.entities[i], dx, dy)
 			drawShape(e)
 			state.entities[i].damaged = false
 		}
@@ -239,6 +255,10 @@ func newWave(state *GameState) {
 		y:      4,
 		health: 5,
 		alive:  true,
+		move: func(e *entity, dx, dy int) {
+			e.x += dx
+			e.y += dy
+		},
 	}
 	octopus := entity{
 		shape: []int{
@@ -256,6 +276,9 @@ func newWave(state *GameState) {
 		y:      y / 2,
 		health: 15,
 		alive:  true,
+		move: func(e *entity, dx, dy int) {
+
+		},
 	}
 
 	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2], state.termX)...)
