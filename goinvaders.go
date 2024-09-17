@@ -20,6 +20,7 @@ type GameState struct {
 	termX        int
 	termY        int
 	waveComplete bool
+	keypress     int // 0 = no key, 1 = 'a', 2 = 'd'
 }
 
 type bullet struct {
@@ -37,7 +38,7 @@ type entity struct {
 	y        int // line position in terminal
 	x        int // column position in terminal
 	shape    []int
-	move     func(e *entity, dx int, dy int)
+	move     func(e *entity, state *GameState)
 	shoot    func(e *entity) *bullet
 	health   int
 	damaged  bool
@@ -122,29 +123,12 @@ func drawEntities(state *GameState, player *entity) {
 		newWave(state)
 	}
 	for i, e := range state.entities {
-		if e.health <= 0 {
-			state.entities[i].alive = false
-		}
-		dy := 0
-		if detectBoundaryCollision('l', state.termX-e.width, e.x) {
-			state.entities[i].collided = true
-			dy = 3
-		} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
-			state.entities[i].collided = false
-			dy = 3
-		}
-		dx := 0
-		if e.collided == true {
-			dx = 1
-		} else {
-			dx = -1
-		}
 		if e.alive {
-			state.entities[i].move(state.entities[i], dx, dy)
-			drawShape(e)
+			state.entities[i].move(state.entities[i], state)
 			state.entities[i].damaged = false
 		}
 	}
+	player.move(player, state)
 	drawShape(player)
 	for _, b := range state.bullets {
 		if b.y < 0+b.velocity || detectCollision(state, b) {
@@ -180,14 +164,10 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			return
 		}
 		if b == 'a' {
-			if !detectBoundaryCollision('l', state.termX-player.width, player.x) {
-				player.move(player, -2, 0)
-			}
+			state.keypress = 1
 		}
 		if b == 'd' {
-			if !detectBoundaryCollision('r', state.termX-player.width, player.x) {
-				player.move(player, 2, 0)
-			}
+			state.keypress = 2
 		}
 		if b == 'w' {
 			bullet := player.shoot(player)
@@ -201,6 +181,7 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			exitChan <- true
 		}
 	default:
+		state.keypress = 0
 	}
 }
 
@@ -255,9 +236,29 @@ func newWave(state *GameState) {
 		y:      4,
 		health: 5,
 		alive:  true,
-		move: func(e *entity, dx, dy int) {
-			e.x += dx
-			e.y += dy
+		move: func(e *entity, state *GameState) {
+			if e.health <= 0 {
+				e.alive = false
+			}
+			dy := 0
+			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
+				e.collided = true
+				dy = 3
+			} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
+				e.collided = false
+				dy = 3
+			}
+			dx := 0
+			if e.collided {
+				dx = 1
+			} else {
+				dx = -1
+			}
+			if e.alive {
+				e.x += dx
+				e.y += dy
+				drawShape(e)
+			}
 		},
 	}
 	octopus := entity{
@@ -276,8 +277,9 @@ func newWave(state *GameState) {
 		y:      y / 2,
 		health: 15,
 		alive:  true,
-		move: func(e *entity, dx, dy int) {
-
+		move: func(e *entity, state *GameState) {
+			drawShape(e)
+			//			e.x += 1 * 5
 		},
 	}
 
@@ -385,9 +387,12 @@ func main() {
 		width: 9,
 		x:     x / 2,
 		y:     y - 3,
-		move: func(e *entity, dx int, dy int) {
-			e.x += dx
-			e.y += dy
+		move: func(e *entity, state *GameState) {
+			if state.keypress == 1 {
+				e.x -= 1
+			} else if state.keypress == 2 {
+				e.x += 1
+			}
 		},
 		shoot: func(e *entity) *bullet {
 			return &bullet{
