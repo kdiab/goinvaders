@@ -181,7 +181,7 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			exitChan <- true
 		}
 	default:
-		state.keypress = 0
+		//	state.keypress = 0
 	}
 }
 
@@ -278,8 +278,24 @@ func newWave(state *GameState) {
 		health: 15,
 		alive:  true,
 		move: func(e *entity, state *GameState) {
-			drawShape(e)
-			//			e.x += 1 * 5
+			if e.health <= 0 {
+				e.alive = false
+			}
+			if detectBoundaryCollision('l', state.termX-e.width, e.x-20) {
+				e.collided = true
+			} else if detectBoundaryCollision('r', state.termX-e.width, e.x+20) {
+				e.collided = false
+			}
+			dx := 0
+			if e.collided && e.damaged {
+				dx = 20
+			} else if !e.collided && e.damaged {
+				dx = -20
+			}
+			if e.alive {
+				e.x += dx
+				drawShape(e)
+			}
 		},
 	}
 
@@ -389,9 +405,13 @@ func main() {
 		y:     y - 3,
 		move: func(e *entity, state *GameState) {
 			if state.keypress == 1 {
-				e.x -= 1
+				if !detectBoundaryCollision('l', state.termX+e.width, e.x) {
+					e.x -= 1
+				}
 			} else if state.keypress == 2 {
-				e.x += 1
+				if !detectBoundaryCollision('r', state.termX-e.width, e.x) {
+					e.x += 1
+				}
 			}
 		},
 		shoot: func(e *entity) *bullet {
