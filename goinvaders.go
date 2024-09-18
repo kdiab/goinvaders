@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -62,7 +64,11 @@ func disableRawMode() {
 }
 
 func enableRawMode() {
-	var err error
+	cmd := exec.Command("xset", "r", "rate", "50", "30")
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal("xset not installed on system: ", err)
+	}
 	state, err = term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		die("Error enabling raw mode: " + err.Error())
@@ -170,8 +176,11 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			state.keypress = 2
 		}
 		if b == 'w' {
-			bullet := player.shoot(player)
-			spawnBullet(bullet, state)
+			if !(state.keypress == 3) {
+				bullet := player.shoot(player)
+				spawnBullet(bullet, state)
+			}
+			state.keypress = 3
 		}
 		if b == 'n' {
 			state.waveComplete = true
@@ -181,7 +190,7 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			exitChan <- true
 		}
 	default:
-		//	state.keypress = 0
+		state.keypress = 0
 	}
 }
 
@@ -189,13 +198,17 @@ func exitGame(exitChan chan bool) {
 	select {
 	case <-exitChan:
 		disableRawMode()
-		fmt.Println("Thank you for playing!")
-		os.Exit(0)
 	case <-signalChan():
 		disableRawMode()
-		fmt.Println("Thank you for playing!")
-		os.Exit(0)
 	}
+	cmd := exec.Command("xset", "r", "rate", "500", "30") // Adjust to system default values
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal("xset not installed on system: ", err)
+	}
+	fmt.Print("\x1b[2J\x1b[H\x1b[?25h")
+	fmt.Println("Thank you for playing!")
+	os.Exit(0)
 }
 
 func MakeEnemies(state *GameState) (enemies []int) {
