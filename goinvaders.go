@@ -436,6 +436,16 @@ func detectCollision(state *GameState, b *bullet) bool {
 	return false
 }
 
+func detectPlayerCollision(player *entity, b *bullet) bool {
+	if (b.x >= player.x && b.x <= player.x+player.width-1) && b.y == player.y+len(player.shape) {
+		player.health -= b.damage
+		player.damaged = true
+		if player.alive {
+			return true
+		}
+	}
+	return false
+}
 func main() {
 	enableRawMode()
 	defer disableRawMode()
