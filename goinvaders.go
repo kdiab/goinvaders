@@ -254,6 +254,7 @@ func newWave(state *GameState) {
 				e.alive = false
 			}
 			dy := 0
+			dx := 0
 			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
 				e.collided = true
 				dy = 3
@@ -261,7 +262,43 @@ func newWave(state *GameState) {
 				e.collided = false
 				dy = 3
 			}
+			if e.collided {
+				dx = 1
+			} else {
+				dx = -1
+			}
+			if e.alive {
+				e.x += dx
+				e.y += dy
+				drawShape(e)
+			}
+		},
+	}
+	jellyfish := entity{
+		shape: []int{
+			0b0111111110,
+			0b1000000001,
+			0b1011111101,
+			0b0100000010,
+		},
+		width:  10,
+		x:      x - 10,
+		y:      y / 3,
+		health: 10,
+		alive:  true,
+		move: func(e *entity, state *GameState) {
+			if e.health <= 0 {
+				e.alive = false
+			}
+			dy := 0
 			dx := 0
+			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
+				e.collided = true
+				dy = 3
+			} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
+				e.collided = false
+				dy = 3
+			}
 			if e.collided {
 				dx = 1
 			} else {
@@ -312,7 +349,8 @@ func newWave(state *GameState) {
 		},
 	}
 
-	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2], state.termX)...)
+	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2]+enemies[1], state.termX)...)
+	state.entities = append(state.entities, generateEntities(jellyfish, enemies[2], state.termX)...)
 	state.entities = append(state.entities, generateEntities(octopus, enemies[1], state.termX)...)
 	state.waveComplete = false
 }
