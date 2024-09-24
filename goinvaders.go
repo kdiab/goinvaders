@@ -23,6 +23,7 @@ type GameState struct {
 	termY        int
 	waveComplete bool
 	keypress     int // 0 = no key, 1 = 'a', 2 = 'd'
+	start        bool
 }
 
 type bullet struct {
@@ -116,6 +117,27 @@ func generateEntities(s entity, e1 int, termX int) []*entity {
 	return entities
 }
 
+func drawStartScreen(state *GameState) {
+	height, width := state.termY/3, state.termX/3
+	fmt.Printf("\x1b[2J\x1b[%d;%dH\x1b[?25l\x1b[1;1r", height, width)
+	start := []string{
+		"  ▄████  ▒█████      ██▓ ███▄    █ ██▒   █▓ ▄▄▄      ▓█████▄ ▓█████  ██▀███    ██████ ",
+		" ██▒ ▀█▒▒██▒  ██▒   ▓██▒ ██ ▀█   █▓██░   █▒▒████▄    ▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒▒██    ▒ ",
+		"▒██░▄▄▄░▒██░  ██▒   ▒██▒▓██  ▀█ ██▒▓██  █▒░▒██  ▀█▄  ░██   █▌▒███   ▓██ ░▄█ ▒░ ▓██▄   ",
+		"░▓█  ██▓▒██   ██░   ░██░▓██▒  ▐▌██▒ ▒██ █░░░██▄▄▄▄██ ░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄    ▒   ██▒",
+		"░▒▓███▀▒░ ████▓▒░   ░██░▒██░   ▓██░  ▒▀█░   ▓█   ▓██▒░▒████▓ ░▒████▒░██▓ ▒██▒▒██████▒▒",
+		" ░▒   ▒ ░ ▒░▒░▒░    ░▓  ░ ▒░   ▒ ▒   ░ ▐░   ▒▒   ▓▒█░ ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░▒ ▒▓▒ ▒ ░",
+		"  ░   ░   ░ ▒ ▒░     ▒ ░░ ░░   ░ ▒░  ░ ░░    ▒   ▒▒ ░ ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░░ ░▒  ░ ░",
+		"░ ░   ░ ░ ░ ░ ▒      ▒ ░   ░   ░ ░     ░░    ░   ▒    ░ ░  ░    ░     ░░   ░ ░  ░  ░  ",
+		"      ░     ░ ░      ░           ░      ░        ░  ░   ░       ░  ░   ░           ░  ",
+		"                                       ░              ░                               ",
+		"							        PRESS S TO START								   ",
+	}
+	for i, line := range start {
+		fmt.Printf("\x1b[%d;%dH%s", height+i, width, line)
+	}
+}
+
 func drawEntities(state *GameState, player *entity) {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
 	fmt.Printf("DEBUG INFO\r\nWave: %d\r\nWave in Base3: %s\r\nTerminal Width: %d\r\nPlayer Position: %d\r\nLeft Wall Collision: %t\r\nRight Wall Collision: %t\r\n", state.wave, base3.IntToBase3(state.wave, 5), state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
@@ -125,27 +147,31 @@ func drawEntities(state *GameState, player *entity) {
 	//	for _, e := range state.bullets {
 	//		fmt.Printf("Bullet X: %d\r\nBullet Y: %d\r\n", e.x, e.y)
 	//	}
-	if state.waveComplete == true {
+	if !state.start {
+		drawStartScreen(state)
+	}
+	if state.waveComplete && state.start {
 		newWave(state)
-	}
-	for i, e := range state.entities {
-		if e.alive {
-			state.entities[i].move(state.entities[i], state)
-			state.entities[i].damaged = false
+	} else if !state.waveComplete && state.start {
+		for i, e := range state.entities {
+			if e.alive {
+				state.entities[i].move(state.entities[i], state)
+				state.entities[i].damaged = false
+			}
 		}
-	}
-	player.move(player, state)
-	drawShape(player)
-	for _, b := range state.bullets {
-		if b.y < 0+b.velocity || detectCollision(state, b) {
-			new_bullets := removeBullet(state.bullets, b)
-			state.bullets = new_bullets
+		player.move(player, state)
+		drawShape(player)
+		for _, b := range state.bullets {
+			if b.y < 0+b.velocity || detectCollision(state, b) {
+				new_bullets := removeBullet(state.bullets, b)
+				state.bullets = new_bullets
+			}
+			drawBullet(b)
 		}
-		drawBullet(b)
-	}
-	if allEnemiesKilled(state) {
-		state.waveComplete = true
-		updateGame(state)
+		if allEnemiesKilled(state) {
+			state.waveComplete = true
+			updateGame(state)
+		}
 	}
 }
 
@@ -181,6 +207,9 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 				spawnBullet(bullet, state)
 			}
 			state.keypress = 3
+		}
+		if b == 's' && !state.start {
+			state.start = true
 		}
 		if b == 'n' {
 			state.waveComplete = true
@@ -221,6 +250,9 @@ func MakeEnemies(state *GameState) (enemies []int) {
 }
 
 func allEnemiesKilled(state *GameState) bool {
+	if !state.start {
+		return false
+	}
 	for _, e := range state.entities {
 		if e.alive {
 			return false
@@ -294,10 +326,10 @@ func newWave(state *GameState) {
 			dx := 0
 			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
 				e.collided = true
-				dy = 3
+				dy = 5
 			} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
 				e.collided = false
-				dy = 3
+				dy = 5
 			}
 			if e.collided {
 				dx = 1
@@ -337,9 +369,9 @@ func newWave(state *GameState) {
 				e.collided = false
 			}
 			dx := 0
-			if e.collided && e.damaged {
+			if e.collided && e.health < 4 {
 				dx = 20
-			} else if !e.collided && e.damaged {
+			} else if !e.collided && e.health < 4 {
 				dx = -20
 			}
 			if e.alive {
@@ -436,16 +468,17 @@ func detectCollision(state *GameState, b *bullet) bool {
 	return false
 }
 
-func detectPlayerCollision(player *entity, b *bullet) bool {
-	if (b.x >= player.x && b.x <= player.x+player.width-1) && b.y == player.y+len(player.shape) {
-		player.health -= b.damage
-		player.damaged = true
-		if player.alive {
-			return true
-		}
+func startGame(x int, y int, start bool) GameState {
+	state := GameState{
+		wave:         0,
+		termX:        x,
+		termY:        y,
+		waveComplete: false,
+		start:        start,
 	}
-	return false
+	return state
 }
+
 func main() {
 	enableRawMode()
 	defer disableRawMode()
@@ -467,11 +500,11 @@ func main() {
 		move: func(e *entity, state *GameState) {
 			if state.keypress == 1 {
 				if !detectBoundaryCollision('l', state.termX+e.width, e.x) {
-					e.x -= 1
+					e.x -= 2
 				}
 			} else if state.keypress == 2 {
 				if !detectBoundaryCollision('r', state.termX-e.width, e.x) {
-					e.x += 1
+					e.x += 2
 				}
 			}
 		},
@@ -493,19 +526,12 @@ func main() {
 		alive:  true,
 	}
 
-	state := GameState{
-		wave:         1,
-		termX:        x,
-		termY:        y,
-		waveComplete: false,
-	}
-	newWave(&state)
-
 	exitChan := make(chan bool)
 	userInput := make(chan byte)
 
 	go exitGame(exitChan)
 	go readInput(userInput)
+	state := startGame(x, y, false)
 
 	for {
 		processInput(userInput, exitChan, &state, &player)
