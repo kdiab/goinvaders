@@ -139,7 +139,7 @@ func drawStartScreen(state *GameState) {
 }
 
 func drawLossScreen(state *GameState) {
-	height, width := state.termY, state.termX/3
+	height, width := state.termY/3, state.termX/3
 	fmt.Printf("\x1b[2J\x1b[%d;%dH\x1b[?25l\x1b[1;1r", height, width)
 	start := []string{
 		"██    ██  ██████  ██    ██     ██       ██████  ███████ ███████ ",
@@ -148,11 +148,10 @@ func drawLossScreen(state *GameState) {
 		"   ██    ██    ██ ██    ██     ██      ██    ██      ██ ██      ",
 		"   ██     ██████   ██████      ███████  ██████  ███████ ███████ ",
 	}
-	for k := 0; k < 3; k++ {
-		for i, line := range start {
-			fmt.Printf("\x1b[%d;%dH%s", height+i, width, line)
-		}
+	for i, line := range start {
+		fmt.Printf("\x1b[%d;%dH%s", height+i, width, line)
 	}
+	fmt.Printf("\x1b[%d;%dHScore: %d\x1b[%d;%dHPRESS S TO RESTART", height+10, width, state.wave, height+12, width)
 }
 
 func drawEntities(state *GameState, player *entity) {
@@ -164,6 +163,9 @@ func drawEntities(state *GameState, player *entity) {
 	//	for _, e := range state.bullets {
 	//		fmt.Printf("Bullet X: %d\r\nBullet Y: %d\r\n", e.x, e.y)
 	//	}
+	if state.start == 2 {
+		drawLossScreen(state)
+	}
 	if state.start == 0 {
 		drawStartScreen(state)
 	}
@@ -190,6 +192,7 @@ func drawEntities(state *GameState, player *entity) {
 			updateGame(state)
 		}
 	}
+	checkPassThrough(state)
 }
 
 func readInput(userInput chan byte) {
@@ -225,8 +228,15 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 			}
 			state.keypress = 3
 		}
-		if b == 's' && (state.start == 0 || state.start == 2) {
-			state.start = 1
+		if b == 's' {
+			if state.start == 0 {
+				state.start = 1
+			}
+			if state.start == 2 {
+				s := startGame(state.termX, state.termY, 1)
+				state.wave = s.wave
+				state.start = s.start
+			}
 		}
 		if b == 'n' {
 			state.waveComplete = true
@@ -306,10 +316,10 @@ func newWave(state *GameState) {
 			dx := 0
 			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
 				e.collided = true
-				dy = 3
+				dy = 17
 			} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
 				e.collided = false
-				dy = 3
+				dy = 17
 			}
 			if e.collided {
 				dx = 1
@@ -386,9 +396,9 @@ func newWave(state *GameState) {
 				e.collided = false
 			}
 			dx := 0
-			if e.collided && e.health < 4 {
+			if e.collided && e.health < 4 && e.damaged {
 				dx = 20
-			} else if !e.collided && e.health < 4 {
+			} else if !e.collided && e.health < 4 && e.damaged {
 				dx = -20
 			}
 			if e.alive {
@@ -398,7 +408,7 @@ func newWave(state *GameState) {
 		},
 	}
 
-	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2]+enemies[1], state.termX)...)
+	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2]*2+enemies[1]*2+enemies[0]*2, state.termX)...)
 	state.entities = append(state.entities, generateEntities(jellyfish, enemies[2], state.termX)...)
 	state.entities = append(state.entities, generateEntities(octopus, enemies[1], state.termX)...)
 	state.waveComplete = false
@@ -494,6 +504,14 @@ func startGame(x int, y int, start int) GameState {
 		start:        start,
 	}
 	return state
+}
+
+func checkPassThrough(state *GameState) {
+	for _, e := range state.entities {
+		if e.y > state.termY {
+			state.start = 2
+		}
+	}
 }
 
 func main() {
