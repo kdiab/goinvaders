@@ -134,7 +134,8 @@ func drawStartScreen(state *GameState) {
 		"░ ░   ░ ░ ░ ░ ▒      ▒ ░   ░   ░ ░     ░░    ░   ▒    ░ ░  ░    ░     ░░   ░ ░  ░  ░  ",
 		"      ░     ░ ░      ░           ░      ░        ░  ░   ░       ░  ░   ░           ░  ",
 		"                                       ░              ░                               ",
-		"						PRESS S TO START											   ",
+		"				W: SHOOT | A: LEFT | D: RIGHT										   ",
+		"				PRESS S TO START													   ",
 	}
 	for i, line := range start {
 		fmt.Printf("\x1b[%d;%dH%s", height+i, width, line)
@@ -159,10 +160,10 @@ func drawLossScreen(state *GameState) {
 
 func drawEntities(state *GameState, player *entity) {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
-	fmt.Printf("DEBUG INFO\r\nWave: %d\r\nWave in Base3: %s\r\nTerminal Width: %d\r\nPlayer Position: %d\r\nLeft Wall Collision: %t\r\nRight Wall Collision: %t\r\n", state.wave, base3.IntToBase3(state.wave, 5), state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
-	for _, e := range state.entities {
-		fmt.Printf("Entity X: %d\r\nEntity Y: %d\r\n", e.x, e.y)
-	}
+	//	fmt.Printf("DEBUG INFO\r\nWave: %d\r\nWave in Base3: %s\r\nTerminal Width: %d\r\nPlayer Position: %d\r\nLeft Wall Collision: %t\r\nRight Wall Collision: %t\r\n", state.wave, base3.IntToBase3(state.wave, 5), state.termX, player.x, detectBoundaryCollision('l', state.termX-player.width, player.x), detectBoundaryCollision('r', state.termX-player.width, player.x))
+	//	for _, e := range state.entities {
+	//		fmt.Printf("Entity X: %d\r\nEntity Y: %d\r\n", e.x, e.y)
+	//	}
 	//	for _, e := range state.bullets {
 	//		fmt.Printf("Bullet X: %d\r\nBullet Y: %d\r\n", e.x, e.y)
 	//	}
