@@ -37,16 +37,17 @@ type bullet struct {
 }
 
 type entity struct {
-	width    int
-	y        int // line position in terminal
-	x        int // column position in terminal
-	shape    []int
-	move     func(e *entity, state *GameState)
-	shoot    func(e *entity) *bullet
-	health   int
-	damaged  bool
-	alive    bool
-	collided bool
+	width            int
+	y                int // line position in terminal
+	x                int // column position in terminal
+	shape            []int
+	move             func(e *entity, state *GameState)
+	shoot            func(e *entity) *bullet
+	health           int
+	damaged          bool
+	alive            bool
+	collided         bool
+	alternativeShape []int
 }
 
 var state *term.State
@@ -77,10 +78,15 @@ func enableRawMode() {
 	fmt.Print("\x1b[2J\x1b[H\x1b[?25l\x1b[1;1r")
 }
 
-func drawShape(s *entity) {
+func drawShape(s *entity, alt bool) {
 	var shape []string
-
-	for _, line := range s.shape {
+	var sh []int
+	if alt {
+		sh = s.alternativeShape
+	} else {
+		sh = s.shape
+	}
+	for _, line := range sh {
 		binaryString := fmt.Sprintf("%0*b", s.width, line)
 		lineStr := strings.ReplaceAll(binaryString, "1", "█")
 		lineStr = strings.ReplaceAll(lineStr, "0", " ")
@@ -97,18 +103,15 @@ func drawShape(s *entity) {
 	}
 }
 
-func generateEntities(s entity, e1 int, termX int) []*entity {
+func generateEntities(s entity, e1 int, rangeMin int, rangeMax int) []*entity {
 	var entities []*entity
 	if e1 <= 0 {
 		return entities
 	}
 	for i := 0; i < e1; i++ {
-		r := rand.Intn(termX)
+		r := rand.Intn(rangeMax-rangeMin+1) + rangeMin
 		if r < s.width {
 			r += s.width
-		}
-		if r > termX-s.width {
-			r -= s.width
 		}
 		newEntity := s
 		newEntity.x = r
@@ -179,7 +182,7 @@ func drawEntities(state *GameState, player *entity) {
 			}
 		}
 		player.move(player, state)
-		drawShape(player)
+		drawShape(player, false)
 		for _, b := range state.bullets {
 			if b.y < 0+b.velocity || detectCollision(state, b) {
 				new_bullets := removeBullet(state.bullets, b)
@@ -233,9 +236,12 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 				state.start = 1
 			}
 			if state.start == 2 {
-				s := startGame(state.termX, state.termY, 1)
-				state.wave = s.wave
-				state.start = s.start
+				var b []*bullet
+				state.wave = 0
+				state.start = 1
+				state.bullets = b
+				state.waveComplete = false
+				newWave(state)
 			}
 		}
 		if b == 'n' {
@@ -329,7 +335,7 @@ func newWave(state *GameState) {
 			if e.alive {
 				e.x += dx
 				e.y += dy
-				drawShape(e)
+				drawShape(e, false)
 			}
 		},
 	}
@@ -349,24 +355,30 @@ func newWave(state *GameState) {
 			if e.health <= 0 {
 				e.alive = false
 			}
-			dy := 0
-			dx := 0
+			dx := 1
+
 			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
 				e.collided = true
-				dy = 5
 			} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
 				e.collided = false
-				dy = 5
 			}
+
 			if e.collided {
 				dx = 1
 			} else {
 				dx = -1
 			}
+
+			if e.damaged {
+				if detectBoundaryCollision('l', state.termX-e.width, e.x-50) {
+					dx = 50
+				} else if detectBoundaryCollision('r', state.termX-e.width, e.x+50) {
+					dx = -50
+				}
+			}
 			if e.alive {
 				e.x += dx
-				e.y += dy
-				drawShape(e)
+				drawShape(e, false)
 			}
 		},
 	}
@@ -403,14 +415,64 @@ func newWave(state *GameState) {
 			}
 			if e.alive {
 				e.x += dx
-				drawShape(e)
+				drawShape(e, false)
+			}
+		},
+	}
+	bossman := entity{
+		shape: []int{
+			0b000000000000000000000000000000000000000000000000000000000111,
+			0b000011111110001111111000011111100011111000011111000111111000,
+			0b001100000001010000001010000010100000001010000101000000000110,
+			0b000011111111110111111011111110111111101111111011111111100000,
+			0b000000000001010000001010000010100000001010000101000000000000,
+			0b000011111110001111111000011111100011111000011111000111111000,
+			0b000000000000000000000000000000000000000000000000000000000111,
+		},
+		alternativeShape: []int{
+			0b111000000000000000000000000000000000000000000000000000000000,
+			0b000111111000111110000111110001111110000111111100011111110000,
+			0b011000000000101000010100000001010000010100000010100000001100,
+			0b000001111111110111111101111111011111110111111011111111110000,
+			0b000000000000101000010100000001010000010100000010100000000000,
+			0b000111111000111110000111110001111110000111111100011111110000,
+			0b111000000000000000000000000000000000000000000000000000000000,
+		},
+		width:  60,
+		x:      x - 60,
+		y:      (y / 4) * 3,
+		health: 200,
+		alive:  true,
+		move: func(e *entity, state *GameState) {
+			if e.health <= 0 {
+				e.alive = false
+			}
+			dx := 0
+			if detectBoundaryCollision('l', state.termX-e.width, e.x) {
+				e.collided = true
+			} else if detectBoundaryCollision('r', state.termX-e.width, e.x) {
+				e.collided = false
+			}
+			if e.collided {
+				dx = 1
+			} else {
+				dx = -1
+			}
+			if e.alive {
+				e.x += dx
+				if e.collided {
+					drawShape(e, true)
+				} else {
+					drawShape(e, false)
+				}
 			}
 		},
 	}
 
-	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2]*2+enemies[1]*2+enemies[0]*2, state.termX)...)
-	state.entities = append(state.entities, generateEntities(jellyfish, enemies[2], state.termX)...)
-	state.entities = append(state.entities, generateEntities(octopus, enemies[1], state.termX)...)
+	state.entities = append(state.entities, generateEntities(ufo, enemies[3]+enemies[2]*2+enemies[1]*2+enemies[0]*2, ufo.width, state.termX-ufo.width)...)
+	state.entities = append(state.entities, generateEntities(jellyfish, enemies[2], jellyfish.width, state.termX-jellyfish.width)...)
+	state.entities = append(state.entities, generateEntities(octopus, enemies[1], octopus.width, state.termX-octopus.width)...)
+	state.entities = append(state.entities, generateEntities(bossman, enemies[0], bossman.width, state.termX-bossman.width)...)
 	state.waveComplete = false
 }
 
