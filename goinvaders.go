@@ -245,10 +245,10 @@ func processInput(userInput chan byte, exitChan chan bool, state *GameState, pla
 				newWave(state)
 			}
 		}
-		if b == 'n' {
-			state.waveComplete = true
-			updateGame(state)
-		}
+		//		if b == 'n' {
+		//			state.waveComplete = true
+		//			updateGame(state)
+		//		}
 		if b == 'q' || b == 3 {
 			exitChan <- true
 		}
